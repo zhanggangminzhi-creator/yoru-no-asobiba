@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ねむりのいき</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600&family=Zen+Maru+Gothic:wght@300;400;500&display=swap');
+
+  :root {
+    --bg-h: 222;
+    --bg-s: 45%;
+    --bg-l: 14%;
+    --orb-glow: 0.9;
+    --ui-opacity: 1;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  body {
+    font-family: 'Zen Maru Gothic', sans-serif;
+    background: radial-gradient(ellipse at 50% 40%,
+                hsl(var(--bg-h), var(--bg-s), calc(var(--bg-l) + 6%)) 0%,
+                hsl(var(--bg-h), calc(var(--bg-s) - 10%), var(--bg-l)) 60%,
+                hsl(var(--bg-h), calc(var(--bg-s) - 15%), calc(var(--bg-l) - 6%)) 100%);
+    color: #d7dcec;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 3s ease;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .stars { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .star {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #eef1fb;
+    border-radius: 50%;
+    opacity: var(--ui-opacity);
+    animation: twinkle 5s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.8; }
+  }
+
+  /* 外側：向き（回転）を固定するための土台。ここは一切アニメーションしない */
+  .shoot-anchor {
+    position: absolute;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+  /* 内側：向きが確定した座標系の中で、まっすぐ前方向へ移動するだけ */
+  .shooting-star {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 6px 1.5px rgba(255, 255, 255, 0.95);
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* 尾：グラデーションの線。ローカル座標のマイナスX方向＝進行方向の後ろ側に伸ばす */
+  .shooting-star::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    width: 90px;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+  }
+  @keyframes shoot-move {
+    0%   { opacity: 0; transform: translateX(0); }
+    8%   { opacity: 1; }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: translateX(var(--shoot-dist)); }
+  }
+
+  .stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2.4rem;
+    z-index: 2;
+  }
+
+  .instruction {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.4rem;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    color: #e7e2d0;
+    opacity: var(--ui-opacity);
+    min-height: 2.2rem;
+    transition: opacity 0.6s ease;
+    text-align: center;
+  }
+
+  .orb-wrap {
+    width: 220px;
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .orb {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff8e6, #f0d9a8 45%, #d9b877 100%);
+    box-shadow:
+      0 0 30px rgba(240, 217, 168, calc(var(--orb-glow) * 0.9)),
+      0 0 70px rgba(240, 217, 168, calc(var(--orb-glow) * 0.5)),
+      0 0 120px rgba(217, 184, 119, calc(var(--orb-glow) * 0.3));
+    transition: box-shadow 2s ease;
+    will-change: transform;
+    transform: scale(0.7);
+  }
+
+  .ripple {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 1px solid rgba(240, 217, 168, 0.6);
+    pointer-events: none;
+    animation: ripple-out 0.9s ease-out forwards;
+  }
+  @keyframes ripple-out {
+    0%   { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(2.6); opacity: 0; }
+  }
+
+  /* とめて→はいて の切り替わりを、文字以外でも伝えるための光の脈動 */
+  .orb.pulse-glow {
+    animation: glow-pulse 0.9s ease-out;
+  }
+  @keyframes glow-pulse {
+    0%   { filter: brightness(1); }
+    30%  { filter: brightness(1.6); }
+    100% { filter: brightness(1); }
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 6vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: var(--ui-opacity);
+    transition: opacity 1s ease;
+  }
+
+  .cycle-count { font-size: 0.75rem; letter-spacing: 0.2em; color: #8b93b0; }
+  .hint { font-size: 0.7rem; color: #6b7290; letter-spacing: 0.08em; }
+
+  .mute-btn {
+    position: absolute;
+    top: 5vh;
+    right: 6vw;
+    z-index: 6;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #b8bedc;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 0.5rem 0.9rem;
+    border-radius: 999px;
+    opacity: var(--ui-opacity);
+  }
+
+  .settings-btn {
+    position: absolute;
+    top: 5vh;
+    left: 6vw;
+    z-index: 6;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #b8bedc;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 999px;
+    opacity: var(--ui-opacity);
+  }
+
+  .settings-panel {
+    position: absolute;
+    top: 11vh;
+    left: 6vw;
+    z-index: 7;
+    background: rgba(10, 14, 26, 0.94);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 1rem;
+    display: none;
+    flex-direction: column;
+    gap: 0.7rem;
+    width: min(72vw, 300px);
+  }
+  .settings-panel.show { display: flex; }
+  .settings-panel-label {
+    font-size: 0.65rem;
+    color: #8b93b0;
+    letter-spacing: 0.08em;
+  }
+  .settings-panel-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .settings-back-btn {
+    margin-top: 0.2rem;
+    font-family: 'Zen Maru Gothic', sans-serif;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #9aa2c0;
+    border-radius: 999px;
+    padding: 0.6rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+
+  .end-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: #05070d;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 3s ease;
+    z-index: 5;
+  }
+  .end-screen.show { opacity: 1; pointer-events: auto; }
+  .end-text {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.6rem;
+    color: #cfd5ea;
+    letter-spacing: 0.2em;
+    opacity: 0;
+    animation: fade-in-slow 4s ease forwards 1s;
+  }
+  .restart {
+    font-size: 0.7rem;
+    color: #4d5270;
+    letter-spacing: 0.15em;
+    opacity: 0;
+    animation: fade-in-slow 4s ease forwards 4s;
+  }
+  @keyframes fade-in-slow { to { opacity: 1; } }
+
+  .start-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4rem;
+    background: hsl(222, 45%, 14%);
+    z-index: 10;
+    text-align: center;
+    padding: 2rem;
+  }
+  .start-title {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.9rem;
+    letter-spacing: 0.15em;
+    color: #efe6cc;
+  }
+  .start-sub {
+    font-size: 0.85rem;
+    color: #9aa2c0;
+    line-height: 1.9;
+    max-width: 26ch;
+  }
+  .start-note {
+    font-size: 0.68rem;
+    color: #5c6386;
+    max-width: 26ch;
+    line-height: 1.7;
+  }
+  .bgm-options {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
+  }
+  .bgm-options-label {
+    font-size: 0.65rem;
+    color: #6b7290;
+    letter-spacing: 0.08em;
+  }
+  .bgm-options-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .bgm-opt {
+    font-family: 'Zen Maru Gothic', sans-serif;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #9aa2c0;
+    border-radius: 14px;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.64rem;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+  .bgm-opt span {
+    display: block;
+    font-size: 0.58rem;
+    color: #6b7290;
+  }
+  .bgm-opt.active {
+    border-color: rgba(240, 217, 168, 0.6);
+    background: rgba(240, 217, 168, 0.1);
+    color: #f0d9a8;
+  }
+  .bgm-opt.active span {
+    color: #d9c8a9;
+  }
+  .start-btn {
+    margin-top: 0.4rem;
+    padding: 0.9rem 2.6rem;
+    border-radius: 999px;
+    border: 1px solid rgba(240, 217, 168, 0.4);
+    background: rgba(240, 217, 168, 0.08);
+    color: #f0d9a8;
+    font-family: 'Zen Maru Gothic', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+  <div class="stars" id="stars"></div>
+  <button class="mute-btn" id="muteBtn">♪ 音を消す</button>
+  <button class="settings-btn" id="settingsBtn">⚙</button>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-panel-label">BGMを切り替える</div>
+    <div class="settings-panel-row">
+      <button class="bgm-opt panel-opt" data-mode="full">フル<br><span>パッド+α波θ波</span></button>
+      <button class="bgm-opt panel-opt" data-mode="pad">パッドのみ<br><span>軽量</span></button>
+      <button class="bgm-opt panel-opt" data-mode="minimal">ミニマム<br><span>加工なし</span></button>
+      <button class="bgm-opt panel-opt" data-mode="off">オフ<br><span>無音</span></button>
+    </div>
+    <button class="settings-back-btn" id="backToStartBtn">◀ スタート画面に戻る</button>
+  </div>
+
+  <div class="stage">
+    <div class="instruction" id="instruction">タップして はじめる</div>
+    <div class="orb-wrap" id="orbWrap">
+      <div class="orb" id="orb"></div>
+    </div>
+  </div>
+
+  <div class="footer" id="footer">
+    <div class="cycle-count" id="cycleCount">呼吸 0 / 12</div>
+    <div class="hint">見ているだけでもOK・タップでも波紋が広がります</div>
+  </div>
+
+  <div class="end-screen" id="endScreen">
+    <div class="end-text">おやすみなさい</div>
+    <div class="restart" id="restartBtn">もう一度あそぶ</div>
+  </div>
+
+  <div class="start-screen" id="startScreen">
+    <div class="start-title">ねむりのいき</div>
+    <div class="start-sub">
+      光の球が ゆっくり ふくらんだり しぼんだり します。<br>
+      いちばん ふくらんだ・しぼんだ 瞬間に そっと 波紋が広がります。<br>
+      見ているだけで大丈夫。呼吸を かさねるほど テンポは おそくなり、<br>
+      画面は しずかに くらくなっていきます。
+    </div>
+    <div class="start-note">
+      ※ 4-7-8呼吸法（すって4秒・とめて7秒・はいて8秒）をベースに、<br>
+      サイクルを重ねるごとに本来のテンポへ近づいていきます。
+    </div>
+    <div class="bgm-options" id="bgmOptions">
+      <div class="bgm-options-label">BGM（端末に合わせて選んでください）</div>
+      <div class="bgm-options-row">
+        <button class="bgm-opt active" data-mode="full">フル<br><span>パッド+α波θ波</span></button>
+        <button class="bgm-opt" data-mode="pad">パッドのみ<br><span>軽量</span></button>
+        <button class="bgm-opt" data-mode="minimal">ミニマム<br><span>加工なし</span></button>
+        <button class="bgm-opt" data-mode="off">オフ<br><span>無音</span></button>
+      </div>
+    </div>
+    <button class="start-btn" id="startBtn">しずかに はじめる</button>
+  </div>
+
+<script>
+  let bgmMode = 'full'; // 'full' | 'pad' | 'off'
+  const bgmOptEls = document.querySelectorAll('.start-screen .bgm-opt');
+  bgmOptEls.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bgmMode = btn.dataset.mode;
+      bgmOptEls.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+</script>
+<script>
+  /* ---------- UI要素 ---------- */
+  const root = document.documentElement;
+  const orb = document.getElementById('orb');
+  const orbWrap = document.getElementById('orbWrap');
+  const instruction = document.getElementById('instruction');
+  const cycleCountEl = document.getElementById('cycleCount');
+  const footer = document.getElementById('footer');
+  const endScreen = document.getElementById('endScreen');
+  const startScreen = document.getElementById('startScreen');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const starsWrap = document.getElementById('stars');
+  const muteBtn = document.getElementById('muteBtn');
+
+  const TOTAL_CYCLES = 12;
+
+  // 4-7-8呼吸法の比率（すって:とめて:はいて = 4:7:8）
+  const INHALE_RATIO = 4;
+  const HOLD_RATIO = 7;
+  const EXHALE_RATIO = 8;
+
+  // 1サイクルの「1単位=◯秒」を、序盤はやや短く、終盤は本来の4-7-8（1単位=1秒）へ
+  // 近づけていく。これにより全体の所要時間もゆるやかに伸びていく。
+  const UNIT_START = 0.6; // 序盤: すって2.4s / とめて4.2s / はいて4.8s
+  const UNIT_END = 1.0;   // 終盤: すって4.0s / とめて7.0s / はいて8.0s（本来の4-7-8）
+
+  let cycle = 0;
+  let currentUnit = UNIT_START;
+  let durs = getPhaseDurations(currentUnit);
+  let phase = 'inhale';     // 'inhale' | 'hold' | 'exhale'
+  let phaseStart = 0;
+  let running = false;
+  let muted = false;
+  let rafId = null;
+
+  function getPhaseDurations(unit) {
+    return {
+      inhale: INHALE_RATIO * unit * 1000,
+      hold: HOLD_RATIO * unit * 1000,
+      exhale: EXHALE_RATIO * unit * 1000,
+    };
+  }
+
+  function unitForCycle(c) {
+    return UNIT_START + (UNIT_END - UNIT_START) * (c / (TOTAL_CYCLES - 1));
+  }
+
+  // 星の生成
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.top = Math.random() * 100 + 'vh';
+    s.style.animationDelay = (Math.random() * 5) + 's';
+    starsWrap.appendChild(s);
+  }
+
+  /* ---------- 流れ星（ランダムな間隔でときどき流れる） ---------- */
+  let shootingStarTimer = null;
+
+  function spawnShootingStar() {
+    // 外側（土台）：開始位置と向き（回転）だけを担当し、二度と動かさない
+    const anchor = document.createElement('div');
+    anchor.className = 'shoot-anchor';
+
+    // 内側（本体）：確定した向きの中を、まっすぐ前へ進むだけ
+    const star = document.createElement('div');
+    star.className = 'shooting-star';
+
+    // 左→右、右→左、急な角度・浅い角度、長さ・速さもすべてランダムにして単調さを避ける
+    const dirX = Math.random() < 0.5 ? 1 : -1;       // 1: 左から右へ／-1: 右から左へ
+    const steepness = 12 + Math.random() * 55;        // 水平からの角度（12〜67度）
+    const distanceVw = 26 + Math.random() * 30;       // 移動距離（vw基準の大きさ）
+    const duration = 0.8 + Math.random() * 1.3;       // 流れる速さ
+
+    // 向き（回転角）は「右向きを0度」として、下方向は常にプラス（落ちていく方向）
+    const angleDeg = dirX === 1 ? steepness : 180 - steepness;
+
+    // 進行方向に応じて、画面内に収まりやすい開始位置を選ぶ
+    const startX = dirX === 1
+      ? 2 + Math.random() * 40     // 右へ流れる → 左寄りから開始
+      : 58 + Math.random() * 40;   // 左へ流れる → 右寄りから開始
+    const startY = 3 + Math.random() * 38; // vh（上寄り）
+
+    anchor.style.left = startX + 'vw';
+    anchor.style.top = startY + 'vh';
+    anchor.style.transform = `rotate(${angleDeg.toFixed(2)}deg)`;
+
+    star.style.setProperty('--shoot-dist', distanceVw.toFixed(2) + 'vw');
+    star.style.animation = `shoot-move ${duration.toFixed(2)}s ease-in forwards`;
+
+    anchor.appendChild(star);
+    starsWrap.appendChild(anchor);
+    setTimeout(() => anchor.remove(), duration * 1000 + 100);
+  }
+
+  function scheduleShootingStar() {
+    const nextIn = 9000 + Math.random() * 16000; // 9〜25秒に1回程度、ランダム
+    shootingStarTimer = setTimeout(() => {
+      spawnShootingStar();
+      scheduleShootingStar();
+    }, nextIn);
+  }
+  scheduleShootingStar();
+
+  function easeInOutSine(t) {
+    return -(Math.cos(Math.PI * t) - 1) / 2;
+  }
+
+  /* ---------- 滑らかなアニメーションループ（4-7-8呼吸法ベース） ---------- */
+  function animate(ts) {
+    if (!running) return;
+    if (!phaseStart) phaseStart = ts;
+
+    const dur = durs[phase];
+    const elapsed = ts - phaseStart;
+    const t = Math.min(elapsed / dur, 1);
+    const eased = easeInOutSine(t);
+
+    let scale;
+    if (phase === 'inhale') {
+      scale = 0.7 + eased * (1.35 - 0.7);
+    } else if (phase === 'hold') {
+      // とめている間は、止まりきらないようごくわずかに揺らす
+      scale = 1.32 + 0.03 * Math.sin(ts / 900);
+    } else {
+      scale = 1.35 - eased * (1.35 - 0.7);
+    }
+    orb.style.transform = `scale(${scale.toFixed(4)})`;
+
+    if (elapsed >= dur) {
+      if (phase === 'inhale') {
+        phase = 'hold';
+        instruction.textContent = 'とめて……';
+        spawnRipple(); // 吸いきった＝最大のタイミング
+      } else if (phase === 'hold') {
+        phase = 'exhale';
+        instruction.textContent = 'はいて……';
+        spawnGlowPulse(); // とめて→はいて の切り替わりを光の脈動で知らせる
+      } else {
+        completeCycle();
+        if (!running) return;
+        phase = 'inhale';
+        instruction.textContent = 'すって……';
+        spawnRipple(); // 吐ききった＝最小のタイミング
+      }
+      phaseStart = ts;
+    }
+
+    rafId = requestAnimationFrame(animate);
+  }
+
+  function completeCycle() {
+    cycle++;
+    cycleCountEl.textContent = `呼吸 ${Math.min(cycle, TOTAL_CYCLES)} / ${TOTAL_CYCLES}`;
+    if (cycle >= TOTAL_CYCLES) {
+      endGame();
+      return;
+    }
+    currentUnit = unitForCycle(cycle);
+    durs = getPhaseDurations(currentUnit);
+    setVisualState();
+    updateAudioForProgress();
+  }
+
+  function setVisualState() {
+    const progress = Math.min(cycle / TOTAL_CYCLES, 1);
+    const lightness = 14 - progress * 9;
+    const saturation = 45 - progress * 25;
+    root.style.setProperty('--bg-l', lightness + '%');
+    root.style.setProperty('--bg-s', saturation + '%');
+    root.style.setProperty('--orb-glow', (0.9 - progress * 0.55).toFixed(2));
+    root.style.setProperty('--ui-opacity', (1 - progress * 0.85).toFixed(2));
+  }
+
+  function spawnRipple() {
+    const ripple = document.createElement('div');
+    ripple.className = 'ripple';
+    orbWrap.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 900);
+  }
+
+  function spawnGlowPulse() {
+    orb.classList.remove('pulse-glow');
+    // 一度クラスを外してから付け直すことで、連続で呼ばれてもアニメーションが再生される
+    void orb.offsetWidth; // リフロー強制（アニメーション再トリガーのため）
+    orb.classList.add('pulse-glow');
+  }
+
+  function tap() {
+    if (!running) return;
+    spawnRipple();
+  }
+
+  function endGame() {
+    running = false;
+    cancelAnimationFrame(rafId);
+    instruction.style.opacity = '0';
+    footer.style.opacity = '0';
+    fadeOutAudio(3.5);
+    setTimeout(() => { endScreen.classList.add('show'); }, 800);
+  }
+
+  function startGame() {
+    cycle = 0;
+    currentUnit = UNIT_START;
+    durs = getPhaseDurations(currentUnit);
+    phase = 'inhale';
+    phaseStart = 0;
+    running = true;
+    root.style.setProperty('--bg-l', '14%');
+    root.style.setProperty('--bg-s', '45%');
+    root.style.setProperty('--orb-glow', '0.9');
+    root.style.setProperty('--ui-opacity', '1');
+    instruction.style.opacity = '';
+    footer.style.opacity = '';
+    instruction.textContent = 'すって……';
+    cycleCountEl.textContent = `呼吸 0 / ${TOTAL_CYCLES}`;
+    endScreen.classList.remove('show');
+    startScreen.style.display = 'none';
+    muteBtn.style.display = bgmMode === 'off' ? 'none' : '';
+
+    initAudio();
+    // 2回目以降のプレイでも、バイノーラルビートをα波帯域から再スタートさせる
+    if (binauralOscR && actx) {
+      binauralOscR.frequency.cancelScheduledValues(actx.currentTime);
+      binauralOscR.frequency.setValueAtTime(BINAURAL_CARRIER + ALPHA_START_HZ, actx.currentTime);
+    }
+    if (filterNode && actx) {
+      filterNode.frequency.cancelScheduledValues(actx.currentTime);
+      filterNode.frequency.setValueAtTime(1400, actx.currentTime);
+    }
+    if (masterGain && actx && !muted) {
+      masterGain.gain.cancelScheduledValues(actx.currentTime);
+      masterGain.gain.setValueAtTime(masterGain.gain.value, actx.currentTime);
+      masterGain.gain.setTargetAtTime(BASE_GAIN, actx.currentTime, 0.8);
+    }
+    rafId = requestAnimationFrame(animate);
+  }
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startScreen.style.display = 'flex';
+  });
+  document.body.addEventListener('click', (e) => {
+    if (e.target === muteBtn) return;
+    if (e.target === settingsBtn) return;
+    if (settingsPanel.contains(e.target)) return;
+    if (startScreen.style.display !== 'none') return;
+    if (endScreen.classList.contains('show')) return;
+    tap();
+  });
+
+  /* ---------- ヒーリングBGM（和音パッドはオフラインで事前計算し、
+     リアルタイムで動かす音源をバイノーラルビートの2つだけに絞って軽量化） ---------- */
+  let actx = null;
+  let masterGain = null;
+  let filterNode = null;
+  let padSource = null;
+  const BASE_GAIN = 0.85;       // BGMの基準音量
+
+  // バイノーラルビート（左右の耳にごくわずかに違う周波数を届け、その差の
+  // 周波数を脳が感じ取るとされる手法。イヤホン/ヘッドホン使用が前提）
+  const BINAURAL_CARRIER = 200;
+  const ALPHA_START_HZ = 10;
+  const ALPHA_MID_HZ = 8;
+  const THETA_END_HZ = 5;
+  let binauralOscR = null;
+
+  // 和音パッドをオフラインで一度だけ計算し、ループ再生用のAudioBufferを作る。
+  // 実機で常時鳴らすオシレーターが1つも要らなくなるため、非力な端末でも
+  // プツプツというノイズ（バッファのアンダーラン）が起きにくくなる。
+  async function buildPadBuffer() {
+    const sr = 44100;
+    const loopSeconds = 24;
+    const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const off = new OfflineCtx(2, sr * loopSeconds, sr);
+
+    const chordA = [174.61, 220.00, 261.63];   // F3 A3 C4
+    const chordB = [130.81, 196.00, 246.94];   // C3 G3 B3
+
+    // 書き出し段階でもリミッターをかけ、どの再生モードでも
+    // 音割れ（クリッピング）が起きないバッファにしておく
+    const limiter = off.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 4;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    limiter.connect(off.destination);
+
+    const master = off.createGain();
+    master.gain.value = 0.7; // 出力に十分な余裕（ヘッドルーム）を持たせる
+    master.connect(limiter);
+
+    // A/Bの和音を、ループ1周分（24秒）で自然にクロスフェードさせる。
+    // sin波なのでループの始点と終点が同じ値になり、継ぎ目が生じない。
+    function makeGroup(freqs, phaseOffset) {
+      const groupGain = off.createGain();
+      groupGain.gain.value = 0;
+      freqs.forEach((f) => {
+        const osc = off.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        osc.detune.value = (Math.random() - 0.5) * 4;
+        const g = off.createGain();
+        // 3声を足しても1.0を超えないよう、1声あたりの音量を抑える
+        g.gain.value = 0.28;
+        osc.connect(g);
+        g.connect(groupGain);
+        osc.start(0);
+      });
+      groupGain.connect(master);
+
+      const lfo = off.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 1 / loopSeconds;
+      const lfoGain = off.createGain();
+      lfoGain.gain.value = 0.5;
+      const bias = off.createConstantSource();
+      bias.offset.value = 0.5;
+      lfo.connect(lfoGain);
+      lfoGain.connect(groupGain.gain);
+      bias.connect(groupGain.gain);
+      lfo.start(0);
+      bias.start(0);
+      if (phaseOffset) {
+        // Bグループは逆位相にして、Aが弱まるときにBが強まるようにする
+        lfoGain.gain.value = -0.5;
+      }
+    }
+    makeGroup(chordA, false);
+    makeGroup(chordB, true);
+
+    const buffer = await off.startRendering();
+    // ループ継ぎ目をわずかにクロスフェードして、完全な無音の切れ目を作らない
+    const fadeSamples = Math.floor(sr * 0.05);
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const data = buffer.getChannelData(ch);
+      const len = data.length;
+      for (let i = 0; i < fadeSamples; i++) {
+        const a = i / fadeSamples;
+        const blended = data[i] * a + data[len - fadeSamples + i] * (1 - a);
+        data[i] = blended;
+        data[len - fadeSamples + i] = blended;
+      }
+    }
+    return buffer;
+  }
+
+  function teardownAudio() {
+    if (!actx) return;
+    try { if (padSource) padSource.stop(); } catch (err) { /* noop */ }
+    try { actx.close(); } catch (err) { /* noop */ }
+    actx = null;
+    masterGain = null;
+    filterNode = null;
+    padSource = null;
+    binauralOscR = null;
+  }
+
+  async function initAudio() {
+    if (actx) return;
+    if (bgmMode === 'off') return; // 音声オフが選ばれていたら何も作らない
+
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+
+    masterGain = actx.createGain();
+    masterGain.gain.value = muted ? 0 : 0.0001;
+    masterGain.gain.setTargetAtTime(muted ? 0 : BASE_GAIN, actx.currentTime, 1.8);
+    masterGain.connect(actx.destination);
+
+    if (bgmMode === 'minimal') {
+      // 加工なし・最小構成：バッファ再生とマスター音量だけ。
+      // これでもノイズが出る場合は端末側のWeb Audio実装の限界と判断できる
+      try {
+        const buffer = await buildPadBuffer();
+        if (!actx) return;
+        padSource = actx.createBufferSource();
+        padSource.buffer = buffer;
+        padSource.loop = true;
+        padSource.connect(masterGain);
+        padSource.start();
+      } catch (err) {
+        // noop
+      }
+      return;
+    }
+
+    const compressor = actx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 20;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.03;
+    compressor.release.value = 0.4;
+    compressor.connect(masterGain);
+
+    filterNode = actx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    filterNode.frequency.value = 1400;
+    filterNode.Q.value = 0.3;
+    filterNode.connect(compressor);
+
+    // 和音パッド（ループ再生。実機での負荷はごくわずか）
+    try {
+      const buffer = await buildPadBuffer();
+      if (!actx) return; // 生成中に閉じられていたら中断
+      padSource = actx.createBufferSource();
+      padSource.buffer = buffer;
+      padSource.loop = true;
+      padSource.connect(filterNode);
+      padSource.start();
+    } catch (err) {
+      // オフライン合成に失敗した端末では、パッドなし（バイノーラルのみ）で継続
+    }
+
+    // バイノーラルビート層（実機で常時鳴る音源はこの2つのみ）。
+    // 「パッドのみ」モードが選ばれている場合はここをスキップして負荷をさらに下げる
+    if (bgmMode === 'full' && actx.createChannelMerger) {
+      const merger = actx.createChannelMerger(2);
+      const binauralOscL = actx.createOscillator();
+      binauralOscR = actx.createOscillator();
+      binauralOscL.type = 'sine';
+      binauralOscR.type = 'sine';
+      binauralOscL.frequency.value = BINAURAL_CARRIER;
+      binauralOscR.frequency.value = BINAURAL_CARRIER + ALPHA_START_HZ;
+
+      const binauralGain = actx.createGain();
+      binauralGain.gain.value = 0.13;
+
+      binauralOscL.connect(merger, 0, 0);
+      binauralOscR.connect(merger, 0, 1);
+      merger.connect(binauralGain);
+      binauralGain.connect(compressor);
+
+      binauralOscL.start();
+      binauralOscR.start();
+    }
+  }
+
+  function updateAudioForProgress() {
+    if (!actx) return;
+    const progress = Math.min(cycle / TOTAL_CYCLES, 1);
+    const cutoff = 1400 - progress * 1100;
+    if (filterNode) filterNode.frequency.setTargetAtTime(cutoff, actx.currentTime, 1.2);
+    if (!muted) {
+      masterGain.gain.setTargetAtTime(BASE_GAIN - progress * 0.32, actx.currentTime, 1.2);
+    }
+    if (binauralOscR) {
+      let beatHz;
+      if (progress < 0.5) {
+        beatHz = ALPHA_START_HZ - (progress / 0.5) * (ALPHA_START_HZ - ALPHA_MID_HZ);
+      } else {
+        const p2 = (progress - 0.5) / 0.5;
+        beatHz = ALPHA_MID_HZ - p2 * (ALPHA_MID_HZ - THETA_END_HZ);
+      }
+      binauralOscR.frequency.setTargetAtTime(BINAURAL_CARRIER + beatHz, actx.currentTime, 1.4);
+    }
+  }
+
+  function fadeOutAudio(seconds) {
+    if (!actx || !masterGain) return;
+    masterGain.gain.setTargetAtTime(0.0001, actx.currentTime, seconds / 3);
+  }
+
+  muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    muted = !muted;
+    muteBtn.textContent = muted ? '♪ 音を出す' : '♪ 音を消す';
+    if (masterGain && actx) {
+      masterGain.gain.setTargetAtTime(muted ? 0.0001 : BASE_GAIN, actx.currentTime, 0.5);
+    }
+  });
+
+  function resetToStartScreen() {
+    settingsPanel.classList.remove('show');
+    running = false;
+    cancelAnimationFrame(rafId);
+    teardownAudio();
+    instruction.style.opacity = '';
+    footer.style.opacity = '';
+    endScreen.classList.remove('show');
+    startScreen.style.display = 'flex';
+  }
+
+  // アプリ/タブが裏に回ったら、音を止めるだけでなく、ゲーム自体もスタート画面へ戻す。
+  // これをしないと、スマホの「✕で閉じる」操作がタブの一時停止扱いになり、
+  // 次に開いたときに呼吸の途中から再開してしまう端末がある。
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (actx) actx.suspend();
+      if (running) resetToStartScreen();
+    } else if (actx && running) {
+      actx.resume();
+    }
+  });
+
+  // タブを完全に閉じる/離れるときは、音声リソースをきちんと解放する
+  window.addEventListener('pagehide', teardownAudio);
+  window.addEventListener('beforeunload', teardownAudio);
+
+  /* ---------- 設定パネル（BGM切り替え・スタート画面に戻る） ---------- */
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const backToStartBtn = document.getElementById('backToStartBtn');
+  const panelOptEls = settingsPanel.querySelectorAll('.panel-opt');
+
+  function syncPanelActiveState() {
+    panelOptEls.forEach((b) => b.classList.toggle('active', b.dataset.mode === bgmMode));
+  }
+
+  settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    syncPanelActiveState();
+    settingsPanel.classList.toggle('show');
+  });
+
+  panelOptEls.forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const newMode = btn.dataset.mode;
+      if (newMode === bgmMode) return;
+      bgmMode = newMode;
+      syncPanelActiveState();
+      muteBtn.style.display = bgmMode === 'off' ? 'none' : '';
+
+      // 急に止めるとプツッと鳴るので、ごく短くフェードアウトしてから切り替える
+      if (actx && masterGain) {
+        masterGain.gain.cancelScheduledValues(actx.currentTime);
+        masterGain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.05);
+        await new Promise((resolve) => setTimeout(resolve, 180));
+      }
+      teardownAudio();
+      if (running && bgmMode !== 'off') {
+        await initAudio();
+        updateAudioForProgress(); // 現在の呼吸の進み具合に音量・フィルターを合わせ直す
+      }
+    });
+  });
+
+  backToStartBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // 急に止めるとプツッと鳴るので、ごく短くフェードアウトしてから止める
+    if (actx && masterGain) {
+      running = false;
+      cancelAnimationFrame(rafId);
+      masterGain.gain.cancelScheduledValues(actx.currentTime);
+      masterGain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.05);
+      settingsPanel.classList.remove('show');
+      instruction.style.opacity = '';
+      footer.style.opacity = '';
+      endScreen.classList.remove('show');
+      startScreen.style.display = 'flex';
+      setTimeout(teardownAudio, 180);
+    } else {
+      resetToStartScreen();
+    }
+  });
+
+  // 設定パネル以外をタップしたら閉じる
+  document.body.addEventListener('click', () => {
+    settingsPanel.classList.remove('show');
+  });
+</script>
+</body>
+</html>

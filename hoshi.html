@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ほしにねがいを</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600&family=Zen+Maru+Gothic:wght@300;400;500&display=swap');
+
+  :root {
+    --bg-h: 222;
+    --bg-s: 42%;
+    --bg-l: 15%;
+    --ui-opacity: 1;
+    --star-brightness: 1;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; touch-action: manipulation; }
+
+  body {
+    font-family: 'Zen Maru Gothic', sans-serif;
+    background: radial-gradient(ellipse at 50% 35%,
+                hsl(var(--bg-h), var(--bg-s), calc(var(--bg-l) + 5%)) 0%,
+                hsl(var(--bg-h), calc(var(--bg-s) - 8%), var(--bg-l)) 55%,
+                hsl(var(--bg-h), calc(var(--bg-s) - 14%), calc(var(--bg-l) - 8%)) 100%);
+    color: #d7dcec;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+    transition: background 1.4s ease;
+    user-select: none;
+  }
+
+  .sky { position: absolute; inset: 0; z-index: 1; opacity: var(--ui-opacity); transition: opacity 1.2s ease; }
+
+  .mute-btn {
+    position: absolute;
+    top: 5vh;
+    right: 6vw;
+    z-index: 6;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #b8bedc;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    opacity: var(--ui-opacity);
+    transition: opacity 1.2s ease;
+  }
+  .home-btn {
+    position: absolute;
+    top: 5vh;
+    left: 6vw;
+    z-index: 6;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #b8bedc;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    opacity: var(--ui-opacity);
+    transition: opacity 1.2s ease;
+  }
+
+  .topbar {
+    position: absolute;
+    top: 11vh;
+    left: 0; right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    z-index: 4;
+    opacity: var(--ui-opacity);
+    transition: opacity 1.2s ease;
+    pointer-events: none;
+    padding: 0 14vw;
+  }
+  .hint-label {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
+    color: #d9dcec;
+  }
+  .stage-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    color: #6b7290;
+  }
+
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fbf7ea;
+    cursor: pointer;
+    opacity: calc(var(--base-op, 0.85) * var(--star-brightness));
+    box-shadow: 0 0 6px 1px rgba(251, 247, 234, calc(0.55 * var(--star-brightness)));
+    transition: opacity 3.2s ease, box-shadow 3.2s ease;
+    /* opacityだけの軽量な点滅でもノイズが悪化したため、常時アニメーションは行わない */
+  }
+  .star.igniting {
+    animation: none;
+    transform: scale(1.9);
+    opacity: 1;
+    box-shadow: 0 0 22px 6px rgba(255, 250, 230, 0.95);
+    transition: transform 0.35s ease, opacity 0.35s ease, box-shadow 0.35s ease;
+  }
+  .star.fading {
+    animation: none;
+    transform: scale(0.15);
+    opacity: 0;
+    box-shadow: 0 0 0px 0px rgba(255, 250, 230, 0);
+    transition: transform 1.3s ease, opacity 1.3s ease, box-shadow 1.3s ease;
+    pointer-events: none;
+  }
+  /* 光らず、静かにフッと消える */
+  .star.quiet-fade {
+    animation: none;
+    transform: scale(0.2);
+    opacity: 0;
+    box-shadow: 0 0 0px 0px rgba(255, 250, 230, 0);
+    transition: transform 1.6s ease, opacity 1.6s ease, box-shadow 1.6s ease;
+    pointer-events: none;
+  }
+  /* 流れ星：まず回転だけを「トランジションなし」で確定させ（shooting-setup）、
+     その後「前進（translateX）だけ」をなめらかにアニメーションさせる（shooting）。
+     回転と前進を同時にアニメーションさせると、軌道が弧を描いてしまうため、
+     2段階に分けて直線の軌道にしている。 */
+  .star.shooting-setup {
+    animation: none;
+    transform: rotate(var(--shoot-angle, 0deg)) translateX(var(--shoot-dist, 0px));
+    pointer-events: none;
+  }
+  .star.shooting {
+    animation: none;
+    transform: rotate(var(--shoot-angle, 0deg)) translateX(var(--shoot-dist, 0px));
+    transition: transform 1.6s cubic-bezier(0.3, 0.5, 0.35, 1), opacity 1.6s ease;
+    pointer-events: none;
+  }
+  .star.shooting-setup::before,
+  .star.shooting::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    width: 42px;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(to left, rgba(255, 250, 230, 0.85), rgba(255, 250, 230, 0));
+    pointer-events: none;
+  }
+
+  .end-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 3.5s ease;
+    z-index: 10;
+  }
+  .end-screen.show { opacity: 1; pointer-events: auto; }
+  .end-text {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.6rem;
+    color: #cfd5ea;
+    letter-spacing: 0.22em;
+    opacity: 0;
+    animation: fade-in-slow 4s ease forwards 0.8s;
+  }
+  .restart {
+    font-size: 0.7rem;
+    color: #565c80;
+    letter-spacing: 0.15em;
+    opacity: 0;
+    animation: fade-in-slow 4s ease forwards 3.6s;
+  }
+  @keyframes fade-in-slow { to { opacity: 1; } }
+
+  /* 星座の答え合わせ画面 */
+  .reveal-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+    background: rgba(6, 9, 18, 0.92);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.4s ease;
+    z-index: 15;
+    padding: 6vh 1.6rem 4vh;
+    text-align: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .reveal-screen.show { opacity: 1; pointer-events: auto; }
+  .reveal-eyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    color: #6b7290;
+  }
+  .reveal-name {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.18em;
+    color: #f0e6c8;
+  }
+  .reveal-diagram {
+    width: min(60vw, 260px);
+    aspect-ratio: 1 / 0.8;
+  }
+  .reveal-diagram circle {
+    fill: #fdf8e8;
+  }
+  .reveal-diagram line {
+    stroke: rgba(240, 217, 168, 0.55);
+    stroke-width: 1.4;
+  }
+  .reveal-myth {
+    font-size: 0.78rem;
+    color: #b9bfd8;
+    line-height: 1.9;
+    max-width: 30ch;
+  }
+  .reveal-next-btn {
+    margin-top: 0.4rem;
+    padding: 0.8rem 2.4rem;
+    border-radius: 999px;
+    border: 1px solid rgba(240, 217, 168, 0.35);
+    background: rgba(240, 217, 168, 0.08);
+    color: #ded4b0;
+    font-family: 'Zen Maru Gothic', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+  }
+
+  .start-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1.2rem;
+    background: hsl(222, 42%, 15%);
+    z-index: 20;
+    text-align: center;
+    padding: 6vh 2rem 4vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .start-title {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 1.9rem;
+    letter-spacing: 0.15em;
+    color: #e8e4d4;
+  }
+  .start-sub {
+    font-size: 0.85rem;
+    color: #9aa2c0;
+    line-height: 1.9;
+    max-width: 27ch;
+  }
+  .quality-options {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
+  }
+  .quality-label {
+    font-size: 0.62rem;
+    color: #6b7290;
+    letter-spacing: 0.08em;
+  }
+  .quality-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .quality-opt {
+    font-family: 'Zen Maru Gothic', sans-serif;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #9aa2c0;
+    border-radius: 14px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+  .quality-opt span {
+    display: block;
+    font-size: 0.6rem;
+    color: #6b7290;
+  }
+  .quality-opt.active {
+    border-color: rgba(240, 217, 168, 0.6);
+    background: rgba(240, 217, 168, 0.1);
+    color: #ded4b0;
+  }
+  .quality-opt.active span {
+    color: #cabf9a;
+  }
+  .start-btn {
+    margin-top: 0.4rem;
+    padding: 0.9rem 2.6rem;
+    border-radius: 999px;
+    border: 1px solid rgba(240, 217, 168, 0.35);
+    background: rgba(240, 217, 168, 0.07);
+    color: #ded4b0;
+    font-family: 'Zen Maru Gothic', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+  <div class="sky" id="sky"></div>
+  <button class="mute-btn" id="muteBtn">♪ 音を消す</button>
+  <button class="home-btn" id="homeBtn">◀ はじめから</button>
+
+  <div class="topbar" id="topbar">
+    <div class="hint-label">ながめているだけで、少しずつ消えていきます</div>
+    <div class="stage-label" id="stageLabel">一夜目</div>
+  </div>
+
+  <div class="end-screen" id="endScreen">
+    <div class="end-text">おやすみなさい</div>
+    <div class="restart" id="restartBtn">もう一度あそぶ</div>
+  </div>
+
+  <div class="reveal-screen" id="revealScreen">
+    <div class="reveal-eyebrow">この夜にかくれていた星座</div>
+    <div class="reveal-name" id="revealName"></div>
+    <svg class="reveal-diagram" id="revealDiagram" viewBox="0 0 100 80"></svg>
+    <div class="reveal-myth" id="revealMyth"></div>
+    <button class="reveal-next-btn" id="revealNextBtn">つぎへ</button>
+  </div>
+
+  <div class="start-screen" id="startScreen">
+    <div class="start-title">ほしにねがいを</div>
+    <div class="start-sub">
+      夜空に 星が ちらばっています。<br>
+      なにもしなくても、しばらくすると<br>
+      星は ひとつずつ 静かに消えていきます。<br>
+      タップした星は、また別の場所に そっと生まれ変わります。
+    </div>
+    <div class="quality-options">
+      <div class="quality-label">音質（端末に合わせて選んでください）</div>
+      <div class="quality-row">
+        <button class="quality-opt active" data-quality="high">高<br><span>フル</span></button>
+        <button class="quality-opt" data-quality="mid">中<br><span>ひかえめ</span></button>
+        <button class="quality-opt" data-quality="low">低<br><span>最軽量</span></button>
+      </div>
+    </div>
+    <button class="start-btn" id="startBtn">しずかに はじめる</button>
+  </div>
+
+<script>
+  const root = document.documentElement;
+  const sky = document.getElementById('sky');
+  const topbar = document.getElementById('topbar');
+  const stageLabel = document.getElementById('stageLabel');
+  const endScreen = document.getElementById('endScreen');
+  const startScreen = document.getElementById('startScreen');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const homeBtn = document.getElementById('homeBtn');
+
+  // 3面構成：面を重ねるごとに星は少なく、自動で消えるテンポもゆっくりに。
+  // 基準値の10秒は「レゾナンス周波数呼吸（1分間に6回＝10秒に1呼吸）」という、
+  // 心拍変動（HRV）を最大化しリラックス状態を導くとされる呼吸法の周期に合わせている。
+  // 面が進むごとに、そこからさらにゆっくりへ沈めていく。
+  // 3面構成：面を重ねるごとに星は少なく、自動で消えるテンポもゆっくりに。
+  // 基準は「レゾナンス周波数呼吸（1分間に6回＝10秒に1呼吸）」という、
+  // HRV（心拍変動）を最大化しリラックス状態を導くとされる呼吸法の周期。
+  // ここでは6〜12秒のランダム幅を持たせつつ、面が進むごとに幅自体を後ろへずらし、
+  // 全体としてはさらにゆっくり・不規則に近づけていく。
+  const STAGES = [
+    { name: '一夜目', starCount: 20, minSec: 6.0, maxSec: 9.0 },
+    { name: '二夜目', starCount: 14, minSec: 7.5, maxSec: 10.5 },
+    { name: '三夜目', starCount: 8,  minSec: 9.0, maxSec: 12.0 },
+  ];
+  const TOTAL_STARS = STAGES.reduce((sum, s) => sum + s.starCount, 0);
+  const START_L = 15, END_L = 2.5;
+  const START_S = 42, END_S = 20;
+
+  // 各面にこっそり仕込む星座。座標は0〜1の正規化値（簡略化した形）。
+  // edgesは、答え合わせの図で線をつなぐ順番。
+  const CONSTELLATIONS = [
+    {
+      name: 'おおぐま座（北斗七星）',
+      points: [[0.08,0.62],[0.28,0.58],[0.46,0.52],[0.62,0.46],[0.60,0.22],[0.38,0.16],[0.34,0.40]],
+      edges: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,3]],
+      myth: '女神に仕える乙女が、大神ゼウスとの間に子をなしたことで妻ヘラの怒りを買い、熊の姿に変えられてしまった。その息子もまた熊にされ、二人は天に上げられて、おおぐま座になったと伝えられている。',
+    },
+    {
+      name: 'カシオペヤ座',
+      points: [[0.05,0.55],[0.28,0.15],[0.50,0.50],[0.72,0.10],[0.95,0.45]],
+      edges: [[0,1],[1,2],[2,3],[3,4]],
+      myth: 'エチオピアの王妃カシオペヤは、自らの美しさを海の妖精たちより優れていると誇り、海神の怒りを買った。罰として、椅子に座ったまま夜空を巡り続ける星座にされたという。',
+    },
+    {
+      name: 'オリオン座',
+      points: [[0.22,0.12],[0.78,0.15],[0.38,0.45],[0.50,0.48],[0.62,0.51],[0.15,0.88],[0.85,0.85]],
+      edges: [[0,2],[1,4],[2,3],[3,4],[2,5],[4,6]],
+      myth: '狩人オリオンは自らの力を誇り、あらゆる獣を狩り尽くすと豪語した。それを聞いた女神は怒り、一匹のさそりを送ってオリオンを刺し殺させたと伝えられている。',
+    },
+    {
+      name: 'さそり座',
+      points: [[0.08,0.15],[0.20,0.30],[0.33,0.42],[0.47,0.48],[0.60,0.46],[0.70,0.36],[0.78,0.52],[0.72,0.70]],
+      edges: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7]],
+      myth: '狩人オリオンを刺し殺した、あのさそり。オリオン座とさそり座は同じ夜空に同時に昇ることがなく、まるで今もオリオンから逃げ続けているかのように見える。',
+    },
+    {
+      name: 'はくちょう座',
+      points: [[0.5,0.05],[0.5,0.42],[0.5,0.92],[0.15,0.32],[0.85,0.45]],
+      edges: [[0,1],[1,2],[3,1],[1,4]],
+      myth: '大神ゼウスが白鳥に姿を変えて、ある王妃に近づいたという伝説にちなむ星座。夜空を優雅に飛ぶその姿は、天の川を渡っていく白鳥として描かれている。',
+    },
+    {
+      name: 'こと座',
+      points: [[0.5,0.08],[0.32,0.45],[0.66,0.42],[0.70,0.78],[0.36,0.80]],
+      edges: [[0,1],[0,2],[1,2],[2,3],[3,4],[4,1]],
+      myth: '竪琴の名手オルフェウスが持っていた楽器だと言われている。亡き妻を取り戻そうと冥界へ下ったが叶わず、彼の死後、竪琴は天に上げられこと座になったと伝えられている。',
+    },
+  ];
+
+  let stageIndex = 0;
+  let clearedTotal = 0;
+  let activeStars = []; // 現在の面で、まだ消えていない星
+  let running = false;
+  let autoTimer = null;
+  let usedConstellationNames = []; // このセッション内で使用済みの星座（重複を避ける）
+  let currentConstellation = null; // 今の面に仕込んだ星座
+  let currentConstellationBox = null; // 実際の配置位置・大きさ
+
+  function pickConstellationForStage() {
+    let pool = CONSTELLATIONS.filter((c) => !usedConstellationNames.includes(c.name));
+    if (pool.length === 0) pool = CONSTELLATIONS; // 念のため（面数より星座数が多いので通常は起きない）
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    usedConstellationNames.push(chosen.name);
+    return chosen;
+  }
+
+  function applyDarkness() {
+    const progress = clearedTotal / TOTAL_STARS;
+    const l = START_L - (START_L - END_L) * progress;
+    const s = START_S - (START_S - END_S) * progress;
+    root.style.setProperty('--bg-l', l.toFixed(2) + '%');
+    root.style.setProperty('--bg-s', s.toFixed(2) + '%');
+    root.style.setProperty('--star-brightness', (1 - progress * 0.4).toFixed(3));
+    updateAudioForProgress(progress);
+  }
+
+  // filled=trueなら位置固定（星座用）。省略時はランダムな位置（背景の星）。
+  function makeStarElement(fixedLeftVw, fixedTopVh, constellationSlot) {
+    const star = document.createElement('div');
+    star.className = 'star';
+
+    const size = 3 + Math.random() * 5.5;
+    const left = fixedLeftVw !== undefined ? fixedLeftVw : 3 + Math.random() * 94;
+    const top = fixedTopVh !== undefined ? fixedTopVh : 3 + Math.random() * 80;
+    const baseOp = 0.55 + Math.random() * 0.4;
+    const twinkleDur = 3.2 + Math.random() * 3.5;
+    const twinkleDelay = Math.random() * 4;
+
+    star.style.width = size + 'px';
+    star.style.height = size + 'px';
+    star.style.left = left + 'vw';
+    star.style.top = top + 'vh';
+    star.style.setProperty('--base-op', baseOp.toFixed(2));
+    star.style.setProperty('--twinkle-dur', twinkleDur.toFixed(2) + 's');
+    star.style.setProperty('--twinkle-delay', twinkleDelay.toFixed(2) + 's');
+
+    if (constellationSlot) {
+      star.dataset.constellationSlot = String(constellationSlot.index);
+      // 星座の星は少しだけ大きく・明るくして、浮かび上がりやすくする
+      star.style.width = (size + 1.5) + 'px';
+      star.style.height = (size + 1.5) + 'px';
+      star.style.setProperty('--base-op', '0.95');
+    }
+
+    star.addEventListener('click', () => tapShimmer(star));
+    return star;
+  }
+
+  // 星座の星なら、同じ位置に生まれ変わらせる（形が崩れないように）。
+  // 背景の星なら、これまで通りランダムな場所に生まれ変わる。
+  function respawnLike(oldStar) {
+    if (!running) return;
+    const slotIndex = oldStar.dataset.constellationSlot;
+    if (slotIndex !== undefined && currentConstellationBox) {
+      const idx = Number(slotIndex);
+      const [nx, ny] = currentConstellation.points[idx];
+      const leftVw = currentConstellationBox.offsetX + nx * currentConstellationBox.boxW;
+      const topVh = currentConstellationBox.offsetY + ny * currentConstellationBox.boxH;
+      const newStar = makeStarElement(leftVw, topVh, { index: idx });
+      sky.appendChild(newStar);
+      activeStars.push(newStar);
+    } else {
+      const newStar = makeStarElement();
+      sky.appendChild(newStar);
+      activeStars.push(newStar);
+    }
+  }
+
+  function respawnElsewhere() {
+    // 互換用：常にランダムな場所（背景の星の生まれ変わり専用）
+    if (!running) return;
+    const newStar = makeStarElement();
+    sky.appendChild(newStar);
+    activeStars.push(newStar);
+  }
+
+  function startStage() {
+    sky.innerHTML = '';
+    sky.style.opacity = '1';
+    const stage = STAGES[stageIndex];
+    stageLabel.textContent = stage.name;
+    activeStars = [];
+
+    loadPadForStage(stage); // この面の長さぶん、ノンループの音源を読み込み直す
+
+    currentConstellation = pickConstellationForStage();
+    const boxW = 50 + Math.random() * 25; // vw
+    const boxH = 40 + Math.random() * 18; // vh
+    const offsetX = 6 + Math.random() * (88 - boxW);
+    const offsetY = 6 + Math.random() * (72 - boxH);
+    currentConstellationBox = { offsetX, offsetY, boxW, boxH };
+
+    // 星座の星を配置
+    currentConstellation.points.forEach((pt, idx) => {
+      const leftVw = offsetX + pt[0] * boxW;
+      const topVh = offsetY + pt[1] * boxH;
+      const star = makeStarElement(leftVw, topVh, { index: idx });
+      sky.appendChild(star);
+      activeStars.push(star);
+    });
+
+    // 残りは背景の星（ランダム配置）
+    const fillerCount = Math.max(0, stage.starCount - currentConstellation.points.length);
+    for (let i = 0; i < fillerCount; i++) {
+      const star = makeStarElement();
+      sky.appendChild(star);
+      activeStars.push(star);
+    }
+
+    scheduleAutoExtinguish();
+  }
+
+  function scheduleAutoExtinguish() {
+    if (!running) return;
+    const stage = STAGES[stageIndex];
+    const waitSec = stage.minSec + Math.random() * (stage.maxSec - stage.minSec);
+
+    autoTimer = setTimeout(() => {
+      if (!running) return;
+      if (activeStars.length > 0) {
+        // 背景の星を優先的に選び、星座の形が徐々に浮かび上がるようにする
+        const filler = activeStars.filter((s) => s.dataset.constellationSlot === undefined);
+        const constellationStars = activeStars.filter((s) => s.dataset.constellationSlot !== undefined);
+        let pool = filler;
+        if (filler.length === 0 || Math.random() < 0.15) pool = constellationStars.length > 0 ? constellationStars : filler;
+        if (pool.length > 0) {
+          const pick = pool[Math.floor(Math.random() * pool.length)];
+          autoExtinguish(pick);
+        }
+      }
+      scheduleAutoExtinguish();
+    }, waitSec * 1000);
+  }
+
+  // 流れ星の向きを決める。極力「下方向」寄りにし、左右はランダム。
+  // 連続で流す（流星群）ときは、この向きを使い回して同じ方向へ揃える。
+  function pickShootDirection() {
+    const dirX = Math.random() < 0.5 ? 1 : -1;
+    const steepness = 30 + Math.random() * 25; // 30〜55度（水平からの角度＝斜め下方向）
+    const angleDeg = dirX === 1 ? steepness : 180 - steepness;
+    return { dirX, angleDeg };
+  }
+
+  // 星を、指定した向きへ尾を引きながら、ゆっくり直線的に飛ばして消す。
+  // 戻り値は消滅にかかる時間（ms）。
+  // 回転（向き）を先に確定させてから、前進（距離）だけをアニメーションさせることで、
+  // 軌道が弧を描かず、まっすぐになるようにしている。
+  function shootStar(star, angleDeg) {
+    star.style.setProperty('--shoot-angle', angleDeg.toFixed(2) + 'deg');
+    star.style.setProperty('--shoot-dist', '0px');
+
+    // 1. トランジションなしで、向きだけを先に確定させる
+    star.classList.add('shooting-setup');
+    void star.offsetWidth; // 強制リフローで、この時点の見た目を確定させる
+
+    // 2. 向きが確定した状態から、トランジション付きのクラスに切り替える
+    star.classList.remove('shooting-setup');
+    star.classList.add('shooting');
+
+    const distance = 70 + Math.random() * 50; // px（ゆっくり感を出すため、あまり長くしすぎない）
+    requestAnimationFrame(() => {
+      star.style.setProperty('--shoot-dist', distance.toFixed(1) + 'px');
+      star.style.opacity = '0';
+    });
+
+    const dur = 1600;
+    return dur;
+  }
+
+  // 消え方を毎回ランダムに選ぶ。戻り値は消滅にかかる時間（ms）
+  // ときどき、同じ向きへ他の星もまとめて流す（流星群の演出）。
+  // 巻き込まれた星は本当には消えず、タップ時と同じく別の場所に生まれ変わるだけ。
+  function triggerShowerExtras(angleDeg, excludeStar, probability) {
+    if (Math.random() >= probability) return;
+    const count = 1 + Math.floor(Math.random() * 3); // 追加で1〜3個
+    const candidates = activeStars.filter((s) => s !== excludeStar);
+    shuffleArray(candidates);
+    const extras = candidates.slice(0, count);
+
+    // 選んだ星は即座にactiveStarsから外す。他の処理（自動タイマーや別のタップ）が
+    // 同じ星を同時に選んで二重に流れ星アニメーションを起こすのを防ぐため。
+    activeStars = activeStars.filter((s) => !extras.includes(s));
+
+    extras.forEach((s, i) => {
+      setTimeout(() => {
+        const dur = shootStar(s, angleDeg);
+        setTimeout(() => { s.remove(); respawnLike(s); }, dur);
+      }, (i + 1) * 160);
+    });
+  }
+
+  function playDisappear(star) {
+    const style = Math.random();
+    if (style < 0.3) {
+      // 光らず、静かにフッと消える
+      star.classList.add('quiet-fade');
+      return 1600;
+    } else if (style < 0.55) {
+      // 一瞬光ってから消える
+      star.classList.add('igniting');
+      setTimeout(() => {
+        star.classList.remove('igniting');
+        star.classList.add('fading');
+      }, 350);
+      return 350 + 1300;
+    } else {
+      // 流れ星のように、尾を引いて飛んで消える
+      const { angleDeg } = pickShootDirection();
+      const dur = shootStar(star, angleDeg);
+      triggerShowerExtras(angleDeg, star, 0.25); // 約25%で仲間も連れて流れる
+      return dur;
+    }
+  }
+
+  // 自動タイマーによる消滅：本当に数が減り、夜が深まる（ゲームを進める唯一の手段）
+  function autoExtinguish(star) {
+    if (!activeStars.includes(star)) return;
+
+    const dur = playDisappear(star);
+    activeStars = activeStars.filter((s) => s !== star);
+    clearedTotal++;
+    applyDarkness();
+
+    setTimeout(() => star.remove(), dur);
+
+    if (activeStars.length <= 0) {
+      clearTimeout(autoTimer);
+      setTimeout(showConstellationReveal, 2200);
+    }
+  }
+
+  // タップによる消滅：数は減らない。その場で消えて、別の場所に同じ数だけ新しい星が生まれる。
+  // これにより連打しても進行が早まらない（進行は自動タイマーのみが担う）。
+  // ときどき「流星群」として、同じ方向へ2〜4個まとめて流れることがある。
+  function tapShimmer(star) {
+    if (!activeStars.includes(star)) return;
+
+    if (Math.random() < 0.28) {
+      // 流星群：同じ向きで連続して流す（約28%の確率）
+      const { angleDeg } = pickShootDirection();
+      const burstCount = 2 + Math.floor(Math.random() * 3); // 2〜4個
+
+      const candidates = activeStars.filter((s) => s !== star);
+      shuffleArray(candidates);
+      const extras = candidates.slice(0, burstCount - 1);
+      const group = [star, ...extras];
+
+      // 選んだ星は即座にactiveStarsから外す。他の処理と衝突して
+      // 同じ星が二重に流れ星アニメーションを起こすのを防ぐため。
+      activeStars = activeStars.filter((s) => !group.includes(s));
+
+      group.forEach((s, i) => {
+        setTimeout(() => {
+          const dur = shootStar(s, angleDeg);
+          setTimeout(() => { s.remove(); respawnLike(s); }, dur);
+        }, i * 160);
+      });
+      return;
+    }
+
+    const dur = playDisappear(star);
+    activeStars = activeStars.filter((s) => s !== star);
+    setTimeout(() => star.remove(), dur);
+
+    // 少し間をおいて、別の場所（星座の星なら同じ場所）にふんわり生まれる
+    setTimeout(() => respawnLike(star), 500 + Math.random() * 400);
+  }
+
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  function showConstellationReveal() {
+    topbar.style.opacity = '0';
+
+    const revealScreen = document.getElementById('revealScreen');
+    const revealName = document.getElementById('revealName');
+    const revealMyth = document.getElementById('revealMyth');
+    const revealDiagram = document.getElementById('revealDiagram');
+
+    revealName.textContent = currentConstellation.name;
+    revealMyth.textContent = currentConstellation.myth;
+
+    // 星座の図を線でつないで描画
+    revealDiagram.innerHTML = '';
+    const pad = 8;
+    const w = 100 - pad * 2, h = 80 - pad * 2;
+    currentConstellation.edges.forEach(([a, b]) => {
+      const [ax, ay] = currentConstellation.points[a];
+      const [bx, by] = currentConstellation.points[b];
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', pad + ax * w);
+      line.setAttribute('y1', pad + ay * h);
+      line.setAttribute('x2', pad + bx * w);
+      line.setAttribute('y2', pad + by * h);
+      revealDiagram.appendChild(line);
+    });
+    currentConstellation.points.forEach(([px, py]) => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', pad + px * w);
+      circle.setAttribute('cy', pad + py * h);
+      circle.setAttribute('r', 2.2);
+      revealDiagram.appendChild(circle);
+    });
+
+    revealScreen.classList.add('show');
+    // 「次へ」を押さないまま寝落ちしても、端末の設定通りに画面が自動で消えるようにする
+    releaseWakeLock();
+  }
+
+  function hideConstellationReveal() {
+    document.getElementById('revealScreen').classList.remove('show');
+  }
+
+  function nextStage() {
+    hideConstellationReveal();
+    stageIndex++;
+    if (stageIndex >= STAGES.length) {
+      finishScene();
+      return;
+    }
+    topbar.style.opacity = '';
+    sky.style.opacity = '0';
+    requestWakeLock(); // 次の面が始まるので、再び画面が消えないようにする
+    setTimeout(() => {
+      startStage();
+    }, 1300);
+  }
+
+  document.getElementById('revealNextBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    nextStage();
+  });
+
+  function finishScene() {
+    running = false;
+    clearTimeout(autoTimer);
+    topbar.style.opacity = '0';
+    fadeOutAudio(3.5);
+    releaseWakeLock(); // おやすみなさい画面では、端末の設定通りに画面が自動で消えるようにする
+    setTimeout(() => { endScreen.classList.add('show'); }, 900);
+  }
+
+  function resetToStartScreen() {
+    running = false;
+    clearTimeout(autoTimer);
+    sky.innerHTML = '';
+    topbar.style.opacity = '';
+    muteBtn.style.opacity = '';
+    homeBtn.style.opacity = '';
+    endScreen.classList.remove('show');
+    hideConstellationReveal();
+    startScreen.style.display = 'flex';
+    fadeOutAudio(0.4);
+    setTimeout(teardownAudio, 500);
+    releaseWakeLock();
+  }
+
+  function startGame() {
+    endScreen.classList.remove('show');
+    startScreen.style.display = 'none';
+    topbar.style.opacity = '';
+    muteBtn.style.opacity = '';
+    homeBtn.style.opacity = '';
+
+    stageIndex = 0;
+    clearedTotal = 0;
+    usedConstellationNames = [];
+    running = true;
+    root.style.setProperty('--bg-l', START_L + '%');
+    root.style.setProperty('--bg-s', START_S + '%');
+    root.style.setProperty('--star-brightness', '1');
+
+    initAudio();
+    requestWakeLock(); // ゲーム中は操作がなくても画面が消えないようにする
+    startStage();
+  }
+
+  startBtn.addEventListener('click', startGame);
+  homeBtn.addEventListener('click', () => {
+    resetToStartScreen();
+  });
+  restartBtn.addEventListener('click', () => {
+    startScreen.style.display = 'flex';
+  });
+
+  /* ---------- BGM（壮大な星空をイメージした和音パッド＋星のチャイム） ----------
+     和音パッドもチャイムも「オフラインで一度だけ計算してループ／再生」する方式。
+     実機で新しくオシレーターを作ったり常時鳴らし続けたりしないため、
+     非力な端末でもノイズ（バッファのアンダーラン）が起きにくい。
+     さらに、端末に合わせて選べる3段階の音質（高・中・低）を用意する。 */
+  let actx = null;
+  let masterGain = null;
+  let filterNode = null;
+  let padSource = null;
+  let padGateGain = null;
+  let muted = false;
+  let quality = 'high'; // 'high' | 'mid' | 'low'
+  const BASE_GAIN = 0.8;
+
+  const qualityOptEls = document.querySelectorAll('.quality-opt');
+  qualityOptEls.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      quality = btn.dataset.quality;
+      qualityOptEls.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // totalSeconds分だけ、ループさせない一本のバッファとして書き出す。
+  // 和音の交代（chordA/B）は内部的に26秒周期で繰り返すが、
+  // バッファ自体はループしないので「継ぎ目」が一切発生しない。
+  async function buildPadBuffer(totalSeconds) {
+    const sr = 44100;
+    const cycleSeconds = 26; // 和音が交代する周期（バッファの長さとは無関係）
+    const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const off = new OfflineCtx(2, Math.ceil(sr * totalSeconds), sr);
+
+    // 低音・中音・（高音質のみ）高音のきらめきを重ね、壮大さを出す
+    const useShimmer = quality === 'high';
+    const chordA = useShimmer ? [87.31, 174.61, 261.63, 880.00] : [87.31, 174.61, 261.63];
+    const chordB = useShimmer ? [65.41, 196.00, 329.63, 987.77] : [65.41, 196.00, 329.63];
+
+    const limiter = off.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 4;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    limiter.connect(off.destination);
+
+    const master = off.createGain();
+    master.gain.value = 0.7;
+    master.connect(limiter);
+
+    function makeGroup(freqs, phaseOffset) {
+      const groupGain = off.createGain();
+      groupGain.gain.value = 0;
+      freqs.forEach((f, idx) => {
+        const osc = off.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        osc.detune.value = (Math.random() - 0.5) * 4;
+        const g = off.createGain();
+        // 高音のきらめき（4番目の音、高音質のみ）は控えめな音量に
+        g.gain.value = idx === 3 ? 0.09 : 0.26;
+        osc.connect(g);
+        g.connect(groupGain);
+        osc.start(0);
+      });
+      groupGain.connect(master);
+
+      const lfo = off.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 1 / cycleSeconds;
+      const lfoGain = off.createGain();
+      lfoGain.gain.value = phaseOffset ? -0.5 : 0.5;
+      const bias = off.createConstantSource();
+      bias.offset.value = 0.5;
+      lfo.connect(lfoGain);
+      lfoGain.connect(groupGain.gain);
+      bias.connect(groupGain.gain);
+      lfo.start(0);
+      bias.start(0);
+    }
+    makeGroup(chordA, false);
+    makeGroup(chordB, true);
+
+    return await off.startRendering();
+  }
+
+  async function initAudio() {
+    if (actx) return;
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+
+    masterGain = actx.createGain();
+    masterGain.gain.value = muted ? 0 : 0.0001;
+    masterGain.gain.setTargetAtTime(muted ? 0 : BASE_GAIN, actx.currentTime, 2.2);
+    masterGain.connect(actx.destination);
+
+    if (quality === 'low') {
+      // 低音質：フィルターもコンプレッサーも一切使わない最軽量構成
+      return; // パッドはloadPadForStageが読み込む
+    }
+
+    const compressor = actx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 20;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.03;
+    compressor.release.value = 0.4;
+    compressor.connect(masterGain);
+
+    filterNode = actx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    filterNode.frequency.value = 1600;
+    filterNode.Q.value = 0.3;
+    filterNode.connect(compressor);
+  }
+
+  // その面が終わるまで確実にもつ長さのパッドを、ループさせずに一本だけ書き出して再生する。
+  // ループの継ぎ目そのものをなくすための対策。
+  async function loadPadForStage(stage) {
+    if (!actx) return;
+    const totalSeconds = Math.min(stage.starCount * stage.maxSec + 20, 260);
+    try {
+      const buffer = await buildPadBuffer(totalSeconds);
+      if (!actx) return;
+
+      // 前の音源があれば、急に止めず一瞬フェードアウトしてから止める
+      if (padSource) {
+        const oldSource = padSource;
+        const oldGate = padGateGain;
+        if (oldGate) {
+          oldGate.gain.cancelScheduledValues(actx.currentTime);
+          oldGate.gain.setValueAtTime(oldGate.gain.value, actx.currentTime);
+          oldGate.gain.linearRampToValueAtTime(0.0001, actx.currentTime + 0.12);
+        }
+        setTimeout(() => {
+          try { oldSource.stop(); } catch (err) { /* noop */ }
+          try { oldSource.disconnect(); } catch (err) { /* noop */ }
+        }, 150);
+      }
+
+      padSource = actx.createBufferSource();
+      padSource.buffer = buffer;
+      padSource.loop = false;
+
+      // 新しい音源も、無音からふわっとフェードインさせる（急な立ち上がりを避ける）
+      padGateGain = actx.createGain();
+      padGateGain.gain.value = 0.0001;
+      padGateGain.gain.linearRampToValueAtTime(1, actx.currentTime + 0.35);
+
+      const target = (quality !== 'low' && filterNode) ? filterNode : masterGain;
+      padSource.connect(padGateGain);
+      padGateGain.connect(target);
+      padSource.start();
+    } catch (err) {
+      // オフライン合成に失敗した端末では、パッドなしで継続
+    }
+  }
+
+  function updateAudioForProgress(progress) {
+    if (!actx || !masterGain) return;
+    if (filterNode) {
+      const cutoff = 1600 - progress * 1300; // 1600Hz -> 300Hz。面が進むほどこもっていく
+      filterNode.frequency.setTargetAtTime(cutoff, actx.currentTime, 1.4);
+    }
+    if (!muted) {
+      masterGain.gain.setTargetAtTime(BASE_GAIN - progress * 0.3, actx.currentTime, 1.4);
+    }
+  }
+
+  function fadeOutAudio(seconds) {
+    if (!actx || !masterGain) return;
+    masterGain.gain.setTargetAtTime(0.0001, actx.currentTime, seconds / 3);
+  }
+
+  muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    muted = !muted;
+    muteBtn.textContent = muted ? '♪ 音を出す' : '♪ 音を消す';
+    if (masterGain && actx) {
+      const progress = clearedTotal / TOTAL_STARS;
+      const target = muted ? 0.0001 : (BASE_GAIN - progress * 0.3);
+      masterGain.gain.setTargetAtTime(target, actx.currentTime, 0.5);
+    }
+  });
+
+  // アプリ/タブが裏に回ったら（✕で閉じる操作を含む）、音を止めるだけでなく
+  // ゲーム自体もスタート画面へ戻す。次に開いたときは必ず最初からになる。
+  // 表に戻ってきて、ゲームが継続中ならWake Lockと音声を再開する。
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (actx) actx.suspend();
+      releaseWakeLock();
+      if (running) resetToStartScreen();
+    } else {
+      if (actx && running) actx.resume();
+      if (running && !wakeLock) requestWakeLock();
+    }
+  });
+  function teardownAudio() {
+    if (!actx) return;
+    try { actx.close(); } catch (err) { /* noop */ }
+    actx = null;
+  }
+  window.addEventListener('pagehide', teardownAudio);
+  window.addEventListener('beforeunload', teardownAudio);
+
+  /* ---------- 画面が自動で消えないようにする（Wake Lock） ----------
+     ゲーム中は自動タイマーで進むため、操作がなくても画面が消えては困る。
+     一方、おやすみなさい画面では、端末の設定通りに自動で画面が消えてよい
+     （＝そこでWake Lockを解除する）。
+     対応していないブラウザでは何もしない（安全に無視される）。 */
+  let wakeLock = null;
+
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+    } catch (err) {
+      // 取得に失敗しても致命的ではないため、静かに諦める
+      wakeLock = null;
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  }
+</script>
+</body>
+</html>
